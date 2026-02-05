@@ -13,8 +13,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@patternfly/react-core": "^6.5.0-prerelease.25",
-    "@patternfly/react-table": "^6.5.0-prerelease.25",
+    "@patternfly/react-core": "^6.5.0-prerelease.29",
+    "@patternfly/react-table": "^6.5.0-prerelease.30",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

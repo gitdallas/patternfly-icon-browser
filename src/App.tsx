@@ -93,7 +93,7 @@ function PatternflyIconBrowser() {
                   <Title headingLevel="h1">PatternFly Icon Browser</Title>
 
                   <Content component="small">
-                    PF Icons as of @patternfly/react-icons ^6.5.0-prerelease.25
+                    PF Icons as of @patternfly/react-icons ^6.5.0-prerelease.29
                   </Content>
                 </Content>
               </FlexItem>
