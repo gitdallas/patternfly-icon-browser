@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import ReactDOM from "react-dom/client";
 import {
   Button,
   Card,
@@ -20,6 +21,7 @@ import {
   Switch,
   Title,
 } from "@patternfly/react-core";
+import { DownloadIcon } from "@patternfly/react-icons";
 import * as Icons from "@patternfly/react-icons";
 
 const getAllIconNames = (): string[] => {
@@ -31,10 +33,96 @@ const getAllIconNames = (): string[] => {
     .sort();
 };
 
+// Function to extract SVG markup from an icon component
+const getIconSvg = async (iconName: string): Promise<string | null> => {
+  const IconComponent = Icons[iconName as keyof typeof Icons] as React.ComponentType;
+  if (!IconComponent) return null;
+
+  // Create a temporary div to render the icon
+  const root = document.createElement('div');
+  root.style.position = 'absolute';
+  root.style.left = '-9999px';
+  root.style.top = '-9999px';
+  document.body.appendChild(root);
+
+  // Render the icon component
+  const reactElement = React.createElement(IconComponent);
+  const reactRoot = ReactDOM.createRoot(root);
+  reactRoot.render(reactElement);
+
+  // Wait for render and extract SVG
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const svgElement = root.querySelector('svg');
+      if (svgElement) {
+        const svgString = new XMLSerializer().serializeToString(svgElement);
+        resolve(svgString);
+      } else {
+        resolve(null);
+      }
+      reactRoot.unmount();
+      document.body.removeChild(root);
+    }, 0);
+  });
+};
+
+// Function to convert SVG to PNG and download
+const downloadIconAsPng = async (iconName: string) => {
+  const svgString = await getIconSvg(iconName);
+  if (!svgString) return;
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  canvas.width = 64;
+  canvas.height = 64;
+
+  const img = new Image();
+  img.onload = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, 64, 64);
+
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${iconName.replace(/Icon$/, '').toLowerCase()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    });
+  };
+
+  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  img.src = svgUrl;
+};
+
+// Function to download SVG
+const downloadIconAsSvg = async (iconName: string) => {
+  const svgString = await getIconSvg(iconName);
+  if (!svgString) return;
+
+  const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${iconName.replace(/Icon$/, '').toLowerCase()}.svg`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 function PatternflyIconBrowser() {
   const [search, setSearch] = useState("");
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [rhUiOnly, setRhUiOnly] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("pf-theme-dark");
@@ -62,11 +150,11 @@ function PatternflyIconBrowser() {
 
   const allIconNames = getAllIconNames();
 
-  const filteredIcons = search.trim()
-    ? allIconNames.filter((name) =>
-        name.toLowerCase().includes(search.toLowerCase())
-      )
-    : allIconNames;
+  const filteredIcons = allIconNames.filter((name) => {
+    const matchesSearch = !search.trim() || name.toLowerCase().includes(search.toLowerCase());
+    const matchesRhUi = !rhUiOnly || name.startsWith("RhUi");
+    return matchesSearch && matchesRhUi;
+  });
 
   const handleCopyImport = () => {
     if (selectedIcon) {
@@ -93,7 +181,7 @@ function PatternflyIconBrowser() {
                   <Title headingLevel="h1">PatternFly Icon Browser</Title>
 
                   <Content component="small">
-                    PF Icons as of @patternfly/react-icons ^6.5.0-prerelease.29
+                    PF Icons as of @patternfly/react-icons ^6.5.0-prerelease.39
                   </Content>
                 </Content>
               </FlexItem>
@@ -106,6 +194,14 @@ function PatternflyIconBrowser() {
                 />
               </FlexItem>
             </Flex>
+          </StackItem>
+          <StackItem>
+            <Switch
+              id="rhui-only-switch"
+              label="RhUi Icons only"
+              isChecked={rhUiOnly}
+              onChange={(_event, checked) => setRhUiOnly(checked)}
+            />
           </StackItem>
           <StackItem>
             <SearchInput
@@ -166,35 +262,60 @@ function PatternflyIconBrowser() {
         variant={ModalVariant.small}
         isOpen={selectedIcon !== null}
         onClose={() => setSelectedIcon(null)}
-        title="Icon Import"
+        title="Icon Details"
       >
         <ModalBody>
           <Flex
+            direction={{ default: "column" }}
             spaceItems={{ default: "spaceItemsMd" }}
-            alignItems={{ default: "alignItemsCenter" }}
           >
-            <FlexItem>
-              {SelectedIconComponent && (
-                <div style={{ fontSize: "48px", lineHeight: 1 }}>
-                  <SelectedIconComponent />
-                </div>
-              )}
-            </FlexItem>
-            <FlexItem>
-              <Content>
-                <Content component="small">
-                  <code style={{ fontFamily: "monospace" }}>
-                    import {"{"} {selectedIcon} {"}"} from
-                    '@patternfly/react-icons'
-                  </code>
+            <Flex
+              spaceItems={{ default: "spaceItemsMd" }}
+              alignItems={{ default: "alignItemsCenter" }}
+            >
+              <FlexItem>
+                {SelectedIconComponent && (
+                  <div style={{ fontSize: "48px", lineHeight: 1 }}>
+                    <SelectedIconComponent />
+                  </div>
+                )}
+              </FlexItem>
+              <FlexItem flex={{ default: "flex_1" }}>
+                <Content>
+                  <Content component="small">
+                    <code style={{ fontFamily: "monospace" }}>
+                      import {"{"} {selectedIcon} {"}"} from
+                      '@patternfly/react-icons'
+                    </code>
+                  </Content>
                 </Content>
-              </Content>
-            </FlexItem>
-            <FlexItem>
-              <Button variant="secondary" onClick={handleCopyImport}>
-                Copy Import
-              </Button>
-            </FlexItem>
+              </FlexItem>
+            </Flex>
+            <Flex spaceItems={{ default: "spaceItemsSm" }}>
+              <FlexItem>
+                <Button variant="secondary" onClick={handleCopyImport}>
+                  Copy Import
+                </Button>
+              </FlexItem>
+              <FlexItem>
+                <Button
+                  variant="secondary"
+                  onClick={() => selectedIcon && downloadIconAsSvg(selectedIcon)}
+                  icon={<DownloadIcon />}
+                >
+                  SVG
+                </Button>
+              </FlexItem>
+              <FlexItem>
+                <Button
+                  variant="secondary"
+                  onClick={() => selectedIcon && downloadIconAsPng(selectedIcon)}
+                  icon={<DownloadIcon />}
+                >
+                  PNG
+                </Button>
+              </FlexItem>
+            </Flex>
           </Flex>
         </ModalBody>
       </Modal>
